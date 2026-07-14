@@ -223,17 +223,31 @@ def create_dashboard(master_df, stock_prices_df):
             ])
         ]),
         
-        # Charts Row 1: Cost of Equity and Beta
+        # Charts Row 1: Cost of Equity (full width)
         dbc.Row([
             dbc.Col([
                 dcc.Graph(id='cost-of-equity-chart')
+            ], width=12)
+        ], className="mb-4"),
+        
+        # Charts Row 2: Risk-Free Rate vs Cost of Equity and Market Return vs Cost of Equity
+        dbc.Row([
+            dbc.Col([
+                dcc.Graph(id='rf-vs-coe-chart')
             ], width=6),
             dbc.Col([
-                dcc.Graph(id='beta-chart')
+                dcc.Graph(id='mr-vs-coe-chart')
             ], width=6)
         ], className="mb-4"),
         
-        # Charts Row 2: Risk-Free Rate and Market Return
+        # Charts Row 3: Beta
+        dbc.Row([
+            dbc.Col([
+                dcc.Graph(id='beta-chart')
+            ], width=12)
+        ], className="mb-4"),
+        
+        # Charts Row 4: Risk-Free Rate and Market Return
         dbc.Row([
             dbc.Col([
                 dcc.Graph(id='risk-free-rate-chart')
@@ -243,7 +257,7 @@ def create_dashboard(master_df, stock_prices_df):
             ], width=6)
         ], className="mb-4"),
         
-        # Charts Row 3: Equity Risk Premium and Stock Prices
+        # Charts Row 5: Equity Risk Premium and Stock Prices
         dbc.Row([
             dbc.Col([
                 dcc.Graph(id='equity-risk-premium-chart')
@@ -251,6 +265,29 @@ def create_dashboard(master_df, stock_prices_df):
             dbc.Col([
                 dcc.Graph(id='stock-prices-chart')
             ], width=6)
+        ], className="mb-4"),
+        
+        # Charts Row 6: Beta vs Cost of Equity (with year selector)
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.Label("Select Year for Beta vs Cost of Equity:", style={'fontWeight': 'bold', 'marginBottom': '10px'}),
+                        dcc.Dropdown(
+                            id='beta-coe-year-filter',
+                            options=[{'label': str(year), 'value': year} for year in years if year >= 2012],
+                            value=max([year for year in years if year >= 2012]),
+                            clearable=False,
+                            style={'width': '200px'}
+                        )
+                    ])
+                ], className="mb-3")
+            ], width=12)
+        ]),
+        dbc.Row([
+            dbc.Col([
+                dcc.Graph(id='beta-vs-coe-chart')
+            ], width=12)
         ], className="mb-4"),
         
         # Footer
@@ -270,6 +307,8 @@ def create_dashboard(master_df, stock_prices_df):
     @app.callback(
         [
             Output('cost-of-equity-chart', 'figure'),
+            Output('rf-vs-coe-chart', 'figure'),
+            Output('mr-vs-coe-chart', 'figure'),
             Output('beta-chart', 'figure'),
             Output('risk-free-rate-chart', 'figure'),
             Output('market-return-chart', 'figure'),
@@ -307,6 +346,118 @@ def create_dashboard(master_df, stock_prices_df):
             yaxis_title='Cost of Equity'
         )
         fig_coe.update_yaxes(tickformat='.2%')
+        
+        # Risk-Free Rate vs Cost of Equity Chart
+        fig_rf_vs_coe = go.Figure()
+        
+        # Add Risk-Free Rate line (only once, same for all companies)
+        if len(selected_companies) > 0:
+            first_company_data = filtered_df[filtered_df['Company'] == selected_companies[0]]
+            fig_rf_vs_coe.add_trace(go.Scatter(
+                x=first_company_data['Year'],
+                y=first_company_data['Risk_Free_Rate'],
+                mode='lines+markers',
+                name='Risk-Free Rate',
+                line=dict(color='#808080', dash='dash', width=2),
+                legendgroup='rf'
+            ))
+        
+        # Add Cost of Equity lines for each company
+        for company in selected_companies:
+            company_data = filtered_df[filtered_df['Company'] == company]
+            fig_rf_vs_coe.add_trace(go.Scatter(
+                x=company_data['Year'],
+                y=company_data['Cost_of_Equity'],
+                mode='lines+markers',
+                name=f'{company} - Cost of Equity',
+                line=dict(color=COLORS.get(company, COLORS['primary'])),
+                legendgroup=company
+            ))
+        
+        fig_rf_vs_coe.update_layout(
+            title='Risk-Free Rate vs Cost of Equity',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color=COLORS['text'], size=12),
+            title_font=dict(size=16, color=COLORS['dark']),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Year',
+                title_font=dict(size=14)
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Rate',
+                title_font=dict(size=14),
+                tickformat='.2%'
+            ),
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1.02
+            ),
+            hovermode='x unified'
+        )
+        
+        # Market Return vs Cost of Equity Chart
+        fig_mr_vs_coe = go.Figure()
+        
+        # Add Market Return line (only once, same for all companies)
+        if len(selected_companies) > 0:
+            first_company_data = filtered_df[filtered_df['Company'] == selected_companies[0]]
+            fig_mr_vs_coe.add_trace(go.Scatter(
+                x=first_company_data['Year'],
+                y=first_company_data['Market_Return'],
+                mode='lines+markers',
+                name='Market Return (NIFTY 50)',
+                line=dict(color='#808080', dash='dash', width=2),
+                legendgroup='mr'
+            ))
+        
+        # Add Cost of Equity lines for each company
+        for company in selected_companies:
+            company_data = filtered_df[filtered_df['Company'] == company]
+            fig_mr_vs_coe.add_trace(go.Scatter(
+                x=company_data['Year'],
+                y=company_data['Cost_of_Equity'],
+                mode='lines+markers',
+                name=f'{company} - Cost of Equity',
+                line=dict(color=COLORS.get(company, COLORS['primary'])),
+                legendgroup=company
+            ))
+        
+        fig_mr_vs_coe.update_layout(
+            title='Market Return vs Cost of Equity',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color=COLORS['text'], size=12),
+            title_font=dict(size=16, color=COLORS['dark']),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Year',
+                title_font=dict(size=14)
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Return',
+                title_font=dict(size=14),
+                tickformat='.2%'
+            ),
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1.02
+            ),
+            hovermode='x unified'
+        )
         
         # Beta Chart
         fig_beta = create_line_chart(
@@ -389,7 +540,109 @@ def create_dashboard(master_df, stock_prices_df):
             hovermode='x unified'
         )
         
-        return fig_coe, fig_beta, fig_rf, fig_market, fig_erp, fig_prices
+        return fig_coe, fig_rf_vs_coe, fig_mr_vs_coe, fig_beta, fig_rf, fig_market, fig_erp, fig_prices
+    
+    # Callback for Beta vs Cost of Equity chart
+    @app.callback(
+        Output('beta-vs-coe-chart', 'figure'),
+        [
+            Input('company-filter', 'value'),
+            Input('beta-coe-year-filter', 'value')
+        ]
+    )
+    def update_beta_vs_coe_chart(selected_companies, selected_year):
+        """Update Beta vs Cost of Equity chart for selected year with SML."""
+        # Ensure selected_year is integer
+        selected_year = int(selected_year)
+        
+        # Filter data for selected year and companies
+        year_data = master_df[
+            (master_df['Company'].isin(selected_companies)) &
+            (master_df['Year'] == selected_year)
+        ]
+        
+        # Create scatter plot
+        fig = go.Figure()
+        
+        # Get Risk-Free Rate and Market Return for the selected year
+        if not year_data.empty:
+            rf = year_data['Risk_Free_Rate'].iloc[0]
+            rm = year_data['Market_Return'].iloc[0]
+            
+            # Calculate SML line: Expected Return = Rf + Beta * (Rm - Rf)
+            # Create beta range from 0 to max beta + 0.5
+            max_beta = year_data['Beta'].max()
+            beta_range = [0, max_beta + 0.5]
+            sml_returns = [rf + beta * (rm - rf) for beta in beta_range]
+            
+            # Add SML line
+            fig.add_trace(go.Scatter(
+                x=beta_range,
+                y=sml_returns,
+                mode='lines',
+                name='SML (Security Market Line)',
+                line=dict(color='red', width=3, dash='solid'),
+                hovertemplate='<b>SML</b><br>Beta: %{x:.2f}<br>Expected Return: %{y:.2%}<extra></extra>'
+            ))
+        
+        # Add data points for each company
+        for company in selected_companies:
+            company_data = year_data[year_data['Company'] == company]
+            if not company_data.empty:
+                beta_val = company_data['Beta'].iloc[0]
+                coe_val = company_data['Cost_of_Equity'].iloc[0]
+                
+                fig.add_trace(go.Scatter(
+                    x=[beta_val],
+                    y=[coe_val],
+                    mode='markers+text',
+                    name=company,
+                    marker=dict(
+                        size=20,
+                        color=COLORS.get(company, COLORS['primary']),
+                        line=dict(width=2, color='white')
+                    ),
+                    text=[company],
+                    textposition='top center',
+                    textfont=dict(size=14, color=COLORS['dark'], family='Arial Black'),
+                    hovertemplate=f'<b>{company}</b><br>Beta: {beta_val:.4f}<br>Cost of Equity: {coe_val:.2%}<extra></extra>'
+                ))
+        
+        fig.update_layout(
+            title=f'Beta vs Cost of Equity ({selected_year})',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color=COLORS['text'], size=12),
+            title_font=dict(size=16, color=COLORS['dark']),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Beta',
+                title_font=dict(size=14),
+                zeroline=True,
+                zerolinecolor='#cccccc'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#e0e0e0',
+                title='Cost of Equity',
+                title_font=dict(size=14),
+                tickformat='.2%',
+                zeroline=True,
+                zerolinecolor='#cccccc'
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            hovermode='closest',
+            showlegend=True
+        )
+        
+        return fig
     
     return app
 
